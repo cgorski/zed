@@ -216,6 +216,70 @@ impl Model {
         }
     }
 
+    /// The built-in Claude Fable 5 entry. Anthropic's `/v1/models` listing may
+    /// not surface Fable for every account, so the provider seeds this entry so
+    /// the model is always selectable. Mirrors the GA capabilities: 1M context,
+    /// 128k output, adaptive thinking (always on), vision, compaction, and
+    /// effort levels up to `xhigh`. Fast mode is deliberately left off
+    /// (`supports_speed: false`, matching [`supports_fast_mode`]) so the
+    /// Priority Tier beta header is never sent and the toggle is never offered.
+    pub fn fable_5() -> Self {
+        Self {
+            id: "claude-fable-5".to_string(),
+            display_name: "Claude Fable 5".to_string(),
+            max_input_tokens: 1_000_000,
+            max_output_tokens: 128_000,
+            default_temperature: 1.0,
+            mode: AnthropicModelMode::AdaptiveThinking,
+            supports_thinking: true,
+            supports_adaptive_thinking: true,
+            supports_images: true,
+            supports_speed: false,
+            supports_compaction: true,
+            supported_effort_levels: vec![
+                Effort::Low,
+                Effort::Medium,
+                Effort::High,
+                Effort::XHigh,
+                Effort::Max,
+            ],
+            tool_override: None,
+            extra_beta_headers: vec![COMPACTION_BETA_HEADER.to_string()],
+        }
+    }
+
+    /// The built-in Claude Opus 5 entry, seeded for the same reason as
+    /// [`Model::fable_5`]. Mirrors what [`Model::from_listed`] derives for
+    /// `claude-opus-5`: 1M context, 128k output, adaptive thinking, vision,
+    /// fast mode, compaction, and effort levels up to `xhigh`.
+    pub fn opus_5() -> Self {
+        Self {
+            id: "claude-opus-5".to_string(),
+            display_name: "Claude Opus 5".to_string(),
+            max_input_tokens: 1_000_000,
+            max_output_tokens: 128_000,
+            default_temperature: 1.0,
+            mode: AnthropicModelMode::AdaptiveThinking,
+            supports_thinking: true,
+            supports_adaptive_thinking: true,
+            supports_images: true,
+            supports_speed: true,
+            supports_compaction: true,
+            supported_effort_levels: vec![
+                Effort::Low,
+                Effort::Medium,
+                Effort::High,
+                Effort::XHigh,
+                Effort::Max,
+            ],
+            tool_override: None,
+            extra_beta_headers: vec![
+                FAST_MODE_BETA_HEADER.to_string(),
+                COMPACTION_BETA_HEADER.to_string(),
+            ],
+        }
+    }
+
     pub fn beta_headers(&self) -> Option<String> {
         let headers: Vec<&str> = self
             .extra_beta_headers

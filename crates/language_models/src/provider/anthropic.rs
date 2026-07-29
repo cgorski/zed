@@ -244,6 +244,14 @@ impl LanguageModelProvider for AnthropicLanguageModelProvider {
     fn provided_models(&self, cx: &App) -> Vec<Arc<dyn LanguageModel>> {
         let mut models: BTreeMap<String, anthropic::Model> = BTreeMap::default();
 
+        // Seed built-in entries for models that Anthropic's `/v1/models`
+        // listing may omit on some accounts, so they are always selectable.
+        // Fetched entries with the same id (below) override these with the
+        // server-reported capabilities.
+        for model in [anthropic::Model::fable_5(), anthropic::Model::opus_5()] {
+            models.insert(model.id.to_string(), model);
+        }
+
         // Models reported by Anthropic's `/v1/models` endpoint are the
         // primary source. The list will be empty until authentication has
         // succeeded and the first fetch completes.
