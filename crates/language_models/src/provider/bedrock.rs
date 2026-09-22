@@ -1993,6 +1993,23 @@ fn deny_tool_use_events(
     })
 }
 
+/// Whether a resolved Bedrock model id names Claude Opus 5, the one model
+/// where suppressing thinking requires an explicit `thinking: {"type":
+/// "disabled"}` opt-out. This must be an exact base-id match, not a substring
+/// test: `anthropic.claude-opus-5-5` contains `anthropic.claude-opus-5`, but
+/// Claude Opus 5.5 rejects `disabled` with a 400 (thinking cannot be turned
+/// off on it at all), so it must keep omitting the field.
+///
+/// <https://platform.claude.com/docs/en/models/opus-5-5/migration-guide>
+fn bedrock_model_requires_explicit_thinking_opt_out(model: &str) -> bool {
+    let opus_5 = ConverseModel::ClaudeOpus5.request_id();
+    // Strip any cross-region inference-profile prefix (`global.`, `us.`, …)
+    // so the comparison is against the base model id itself.
+    let base = model.rsplit_once('.').map_or(model, |(_, tail)| tail);
+    let base_opus_5 = opus_5.rsplit_once('.').map_or(opus_5, |(_, tail)| tail);
+    base == base_opus_5
+}
+
 pub fn into_bedrock(
     request: LanguageModelRequest,
     model: String,
@@ -2328,7 +2345,7 @@ pub fn into_bedrock(
             }
             BedrockModelMode::Default => None,
         }
-    } else if model.contains(ConverseModel::ClaudeOpus5.request_id()) {
+    } else if bedrock_model_requires_explicit_thinking_opt_out(&model) {
         // On Claude Opus 5, omitting the `thinking` field no longer means
         // "off": the model runs adaptive thinking by default, so features
         // that suppress thinking (e.g. inline assist) must opt out
@@ -2927,6 +2944,35 @@ mod tests {
     use open_ai::responses::{
         ResponseFunctionToolCall, ResponseOutputMessage, ResponseReasoningItem,
     };
+
+    #[test]
+    fn thinking_opt_out_is_an_exact_opus_5_match_not_a_substring() {
+        // Opus 5 needs the explicit `disabled` opt-out, under any profile prefix.
+        assert!(bedrock_model_requires_explicit_thinking_opt_out(
+            "anthropic.claude-opus-5"
+        ));
+        assert!(bedrock_model_requires_explicit_thinking_opt_out(
+            "global.anthropic.claude-opus-5"
+        ));
+        assert!(bedrock_model_requires_explicit_thinking_opt_out(
+            "us.anthropic.claude-opus-5"
+        ));
+        // Opus 5.5 contains "anthropic.claude-opus-5" as a substring but rejects
+        // `disabled` with a 400 -- it must never get the opt-out.
+        assert!(!bedrock_model_requires_explicit_thinking_opt_out(
+            "anthropic.claude-opus-5-5"
+        ));
+        assert!(!bedrock_model_requires_explicit_thinking_opt_out(
+            "global.anthropic.claude-opus-5-5"
+        ));
+        assert!(!bedrock_model_requires_explicit_thinking_opt_out(
+            "us.anthropic.claude-opus-5-5"
+        ));
+        // Other Opus generations omit the field entirely.
+        assert!(!bedrock_model_requires_explicit_thinking_opt_out(
+            "anthropic.claude-opus-4-8"
+        ));
+    }
 
     fn into_bedrock_request(messages: Vec<LanguageModelRequestMessage>) -> bedrock::Request {
         into_bedrock(

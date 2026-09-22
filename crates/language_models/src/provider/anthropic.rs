@@ -250,7 +250,11 @@ impl LanguageModelProvider for AnthropicLanguageModelProvider {
         // listing may omit on some accounts, so they are always selectable.
         // Fetched entries with the same id (below) override these with the
         // server-reported capabilities.
-        for model in [anthropic::Model::fable_5(), anthropic::Model::opus_5()] {
+        for model in [
+            anthropic::Model::fable_5(),
+            anthropic::Model::opus_5(),
+            anthropic::Model::opus_5_5(),
+        ] {
             models.insert(model.id.to_string(), model);
         }
 

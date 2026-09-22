@@ -22,7 +22,10 @@ pub const ANTHROPIC_API_URL: &str = "https://api.anthropic.com";
 pub const FAST_MODE_BETA_HEADER: &str = "fast-mode-2026-02-01";
 
 pub fn supports_fast_mode(model_id: &str) -> bool {
-    matches!(model_id, "claude-opus-5" | "claude-opus-4-8")
+    matches!(
+        model_id,
+        "claude-opus-5-5" | "claude-opus-5" | "claude-opus-4-8"
+    )
 }
 
 /// Model IDs where adaptive thinking runs by default when a request omits the
@@ -30,12 +33,13 @@ pub fn supports_fast_mode(model_id: &str) -> bool {
 /// explicit `thinking: {"type": "disabled"}`.
 ///
 /// On earlier Opus models omitting `thinking` means thinking is off; Claude
-/// Opus 5 flipped that default. Claude Fable 5 and Claude Mythos 5 also think
-/// by default, but they reject `{"type": "disabled"}` with a 400 error, so
-/// they are deliberately excluded here (thinking cannot be turned off for
-/// them at all).
+/// Opus 5 flipped that default. Claude Fable 5, Claude Mythos 5, and Claude
+/// Opus 5.5 also think by default, but they reject `{"type": "disabled"}`
+/// with a 400 error, so they are deliberately excluded here (thinking cannot
+/// be turned off for them at all; omitting the field is the only valid shape).
 ///
 /// <https://platform.claude.com/docs/en/about-claude/models/migration-guide#migrating-to-claude-opus-5>
+/// <https://platform.claude.com/docs/en/models/opus-5-5/migration-guide>
 pub fn requires_explicit_thinking_opt_out(model_id: &str) -> bool {
     matches!(model_id, "claude-opus-5")
 }
@@ -44,12 +48,24 @@ pub const FABLE_MODEL_ID_PREFIX: &str = "claude-fable-5";
 pub const FABLE_FALLBACK_MODEL_ID: &str = "claude-opus-4-8";
 pub const THINKING_BINDING_CONTROLS_BETA_HEADER: &str = "thinking-binding-controls-2026-08-01";
 
+/// Models that bind each thinking block to the exact conversation prefix that
+/// produced it ("preserved thinking"). Replaying a block after the system
+/// prompt, tools, or an earlier turn changed is a 400 unless the request opts
+/// into `prefix_mismatch_behavior: "drop_block"`. Claude Opus 5.5 inherits
+/// this safeguard from Claude Fable 5.1.
+///
+/// <https://platform.claude.com/docs/en/models/opus-5-5/migration-guide>
 pub fn binds_thinking_blocks_to_prefix(model_id: &str) -> bool {
-    matches!(model_id, "claude-fable-5-1")
+    matches!(model_id, "claude-fable-5-1" | "claude-opus-5-5")
 }
 
+/// Models that reject forced tool use (`tool_choice` types `any` and `tool`)
+/// with a 400. Callers fall back to `auto` with prompt guidance.
 pub fn supports_forced_tool_use(model_id: &str) -> bool {
-    !matches!(model_id, "claude-fable-5-1" | "claude-mythos-5-1")
+    !matches!(
+        model_id,
+        "claude-fable-5-1" | "claude-mythos-5-1" | "claude-opus-5-5"
+    )
 }
 
 /// <https://platform.claude.com/docs/en/build-with-claude/compaction>
@@ -197,6 +213,7 @@ impl Model {
                 | "claude-mythos-5-1"
                 | "claude-mythos-5"
                 | "claude-mythos-preview"
+                | "claude-opus-5-5"
                 | "claude-opus-5"
                 | "claude-opus-4-8"
                 | "claude-opus-4-7"
@@ -294,6 +311,45 @@ impl Model {
             extra_beta_headers: vec![
                 FAST_MODE_BETA_HEADER.to_string(),
                 COMPACTION_BETA_HEADER.to_string(),
+            ],
+        }
+    }
+
+    /// The built-in Claude Opus 5.5 entry, seeded for the same reason as
+    /// [`Model::fable_5`]. Mirrors what [`Model::from_listed`] derives for
+    /// `claude-opus-5-5`: 1M context, 128k output, adaptive thinking (always
+    /// on, cannot be disabled), vision, fast mode, compaction, and effort
+    /// levels up to `xhigh`. Like Claude Fable 5.1 it binds thinking blocks to
+    /// the conversation prefix, so the binding-controls beta header rides
+    /// along and requests opt into `drop_block` (see
+    /// [`binds_thinking_blocks_to_prefix`]).
+    ///
+    /// <https://platform.claude.com/docs/en/models/opus-5-5/overview>
+    pub fn opus_5_5() -> Self {
+        Self {
+            id: "claude-opus-5-5".to_string(),
+            display_name: "Claude Opus 5.5".to_string(),
+            max_input_tokens: 1_000_000,
+            max_output_tokens: 128_000,
+            default_temperature: 1.0,
+            mode: AnthropicModelMode::AdaptiveThinking,
+            supports_thinking: true,
+            supports_adaptive_thinking: true,
+            supports_images: true,
+            supports_speed: true,
+            supports_compaction: true,
+            supported_effort_levels: vec![
+                Effort::Low,
+                Effort::Medium,
+                Effort::High,
+                Effort::XHigh,
+                Effort::Max,
+            ],
+            tool_override: None,
+            extra_beta_headers: vec![
+                FAST_MODE_BETA_HEADER.to_string(),
+                COMPACTION_BETA_HEADER.to_string(),
+                THINKING_BINDING_CONTROLS_BETA_HEADER.to_string(),
             ],
         }
     }
@@ -1933,6 +1989,54 @@ mod tests {
             .expect("model should have beta headers");
         assert!(beta_headers.contains(COMPACTION_BETA_HEADER));
         assert!(!beta_headers.contains(THINKING_BINDING_CONTROLS_BETA_HEADER));
+    }
+
+    #[test]
+    fn opus_5_5_gates_match_its_migration_guide() {
+        // Claude Opus 5.5 inherits Claude Fable 5.1's API safeguards: thinking
+        // blocks bind to the conversation prefix and forced tool use is a 400.
+        // <https://platform.claude.com/docs/en/models/opus-5-5/migration-guide>
+        assert!(binds_thinking_blocks_to_prefix("claude-opus-5-5"));
+        assert!(!supports_forced_tool_use("claude-opus-5-5"));
+        assert!(supports_fast_mode("claude-opus-5-5"));
+
+        // Thinking cannot be disabled on Opus 5.5, so it must NOT be in the
+        // explicit-opt-out set (that set sends `{"type": "disabled"}`, which
+        // Opus 5.5 rejects). Omitting the field is the only valid shape.
+        assert!(!requires_explicit_thinking_opt_out("claude-opus-5-5"));
+        // ...while Opus 5 still is (regression guard for the exact match).
+        assert!(requires_explicit_thinking_opt_out("claude-opus-5"));
+
+        let model = Model::from_listed(listed_entry(
+            "claude-opus-5-5",
+            ModelCapabilities::default(),
+        ));
+        assert!(model.supports_speed);
+        assert!(model.supports_compaction);
+        let beta_headers = model
+            .beta_headers()
+            .expect("model should have beta headers");
+        assert!(beta_headers.contains(FAST_MODE_BETA_HEADER));
+        assert!(beta_headers.contains(COMPACTION_BETA_HEADER));
+        assert!(beta_headers.contains(THINKING_BINDING_CONTROLS_BETA_HEADER));
+    }
+
+    #[test]
+    fn opus_5_5_builtin_mirrors_from_listed() {
+        let builtin = Model::opus_5_5();
+        assert_eq!(builtin.id, "claude-opus-5-5");
+        assert_eq!(builtin.max_input_tokens, 1_000_000);
+        assert_eq!(builtin.max_output_tokens, 128_000);
+        assert_eq!(builtin.mode, AnthropicModelMode::AdaptiveThinking);
+        assert!(builtin.supports_adaptive_thinking);
+        assert!(builtin.supported_effort_levels.contains(&Effort::XHigh));
+        assert!(builtin.supported_effort_levels.contains(&Effort::Max));
+        let beta_headers = builtin
+            .beta_headers()
+            .expect("builtin should have beta headers");
+        assert!(beta_headers.contains(FAST_MODE_BETA_HEADER));
+        assert!(beta_headers.contains(COMPACTION_BETA_HEADER));
+        assert!(beta_headers.contains(THINKING_BINDING_CONTROLS_BETA_HEADER));
     }
 
     #[test]

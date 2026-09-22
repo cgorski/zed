@@ -56,6 +56,13 @@ pub enum ConverseModel {
     )]
     ClaudeFable5,
     #[serde(
+        rename = "claude-opus-5-5",
+        alias = "claude-opus-5-5-latest",
+        alias = "claude-opus-5-5-thinking",
+        alias = "claude-opus-5-5-thinking-latest"
+    )]
+    ClaudeOpus5_5,
+    #[serde(
         rename = "claude-opus-5",
         alias = "claude-opus-5-latest",
         alias = "claude-opus-5-thinking",
@@ -242,6 +249,10 @@ impl ConverseModel {
     pub fn from_id(id: &str) -> anyhow::Result<Self> {
         if id.starts_with("claude-fable-5") {
             Ok(Self::ClaudeFable5)
+        } else if id.starts_with("claude-opus-5-5") {
+            // Must precede the `claude-opus-5` check: that prefix also matches
+            // `claude-opus-5-5` and would silently resolve to the wrong model.
+            Ok(Self::ClaudeOpus5_5)
         } else if id.starts_with("claude-opus-5") {
             Ok(Self::ClaudeOpus5)
         } else if id.starts_with("claude-opus-4-8") {
@@ -272,6 +283,7 @@ impl ConverseModel {
     pub fn id(&self) -> &str {
         match self {
             Self::ClaudeFable5 => "claude-fable-5",
+            Self::ClaudeOpus5_5 => "claude-opus-5-5",
             Self::ClaudeOpus5 => "claude-opus-5",
             Self::ClaudeOpus4_8 => "claude-opus-4-8",
             Self::ClaudeOpus4_7 => "claude-opus-4-7",
@@ -326,6 +338,7 @@ impl ConverseModel {
     pub fn request_id(&self) -> &str {
         match self {
             Self::ClaudeFable5 => "anthropic.claude-fable-5",
+            Self::ClaudeOpus5_5 => "anthropic.claude-opus-5-5",
             Self::ClaudeOpus5 => "anthropic.claude-opus-5",
             Self::ClaudeOpus4_8 => "anthropic.claude-opus-4-8",
             Self::ClaudeOpus4_7 => "anthropic.claude-opus-4-7",
@@ -380,6 +393,7 @@ impl ConverseModel {
     pub fn display_name(&self) -> &str {
         match self {
             Self::ClaudeFable5 => "Claude Fable 5",
+            Self::ClaudeOpus5_5 => "Claude Opus 5.5",
             Self::ClaudeOpus5 => "Claude Opus 5",
             Self::ClaudeOpus4_8 => "Claude Opus 4.8",
             Self::ClaudeOpus4_7 => "Claude Opus 4.7",
@@ -437,6 +451,7 @@ impl ConverseModel {
         match self {
             Self::ClaudeFable5
             | Self::ClaudeOpus5
+            | Self::ClaudeOpus5_5
             | Self::ClaudeOpus4_8
             | Self::ClaudeOpus4_7
             | Self::ClaudeOpus4_6
@@ -475,6 +490,7 @@ impl ConverseModel {
         match self {
             Self::ClaudeFable5
             | Self::ClaudeOpus5
+            | Self::ClaudeOpus5_5
             | Self::ClaudeOpus4_8
             | Self::ClaudeOpus4_7
             | Self::ClaudeOpus4_6
@@ -518,6 +534,7 @@ impl ConverseModel {
         match self {
             Self::ClaudeFable5
             | Self::ClaudeOpus5
+            | Self::ClaudeOpus5_5
             | Self::ClaudeOpus4_8
             | Self::ClaudeOpus4_7
             | Self::ClaudeOpus4_6
@@ -540,6 +557,7 @@ impl ConverseModel {
         match self {
             Self::ClaudeFable5
             | Self::ClaudeOpus5
+            | Self::ClaudeOpus5_5
             | Self::ClaudeOpus4_8
             | Self::ClaudeOpus4_7
             | Self::ClaudeOpus4_6
@@ -575,6 +593,7 @@ impl ConverseModel {
         match self {
             Self::ClaudeFable5
             | Self::ClaudeOpus5
+            | Self::ClaudeOpus5_5
             | Self::ClaudeOpus4_8
             | Self::ClaudeOpus4_7
             | Self::ClaudeOpus4_6
@@ -597,6 +616,7 @@ impl ConverseModel {
         match self {
             Self::ClaudeFable5
             | Self::ClaudeOpus5
+            | Self::ClaudeOpus5_5
             | Self::ClaudeOpus4_8
             | Self::ClaudeOpus4_7
             | Self::ClaudeOpus4_6
@@ -620,6 +640,7 @@ impl ConverseModel {
             self,
             Self::ClaudeFable5
                 | Self::ClaudeOpus5
+                | Self::ClaudeOpus5_5
                 | Self::ClaudeOpus4_8
                 | Self::ClaudeOpus4_7
                 | Self::ClaudeOpus4_6
@@ -638,6 +659,7 @@ impl ConverseModel {
             self,
             Self::ClaudeFable5
                 | Self::ClaudeOpus5
+                | Self::ClaudeOpus5_5
                 | Self::ClaudeOpus4_8
                 | Self::ClaudeOpus4_7
                 | Self::ClaudeOpus4_6
@@ -649,7 +671,11 @@ impl ConverseModel {
     pub fn supports_xhigh_adaptive_thinking(&self) -> bool {
         matches!(
             self,
-            Self::ClaudeFable5 | Self::ClaudeOpus5 | Self::ClaudeOpus4_8 | Self::ClaudeSonnet5
+            Self::ClaudeFable5
+                | Self::ClaudeOpus5_5
+                | Self::ClaudeOpus5
+                | Self::ClaudeOpus4_8
+                | Self::ClaudeSonnet5
         )
     }
 
@@ -678,6 +704,7 @@ impl ConverseModel {
             self,
             Self::ClaudeFable5
                 | Self::ClaudeOpus5
+                | Self::ClaudeOpus5_5
                 | Self::ClaudeOpus4_8
                 | Self::ClaudeOpus4_7
                 | Self::ClaudeOpus4_6
@@ -742,6 +769,7 @@ impl ConverseModel {
             (
                 Self::ClaudeFable5
                 | Self::ClaudeOpus5
+                | Self::ClaudeOpus5_5
                 | Self::ClaudeOpus4_8
                 | Self::ClaudeOpus4_7
                 | Self::ClaudeOpus4_6
@@ -762,6 +790,7 @@ impl ConverseModel {
             (
                 Self::ClaudeFable5
                 | Self::ClaudeOpus5
+                | Self::ClaudeOpus5_5
                 | Self::ClaudeOpus4_8
                 | Self::ClaudeOpus4_7
                 | Self::ClaudeOpus4_6
@@ -850,7 +879,9 @@ impl ConverseModel {
                 "apac",
             ) => Ok(format!("{}.{}", region_group, model_id)),
 
-            (Self::ClaudeFable5 | Self::ClaudeSonnet5, _) => Ok(format!("global.{}", model_id)),
+            (Self::ClaudeFable5 | Self::ClaudeSonnet5 | Self::ClaudeOpus5_5, _) => {
+                Ok(format!("global.{}", model_id))
+            }
 
             // Default: use model ID directly
             _ => Ok(model_id.into()),
@@ -1400,6 +1431,79 @@ mod tests {
             custom_model.cross_region_inference_id("eu-west-1", true)?,
             "custom.my-model-v1:0"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_opus_5_5_ids_and_capabilities() -> anyhow::Result<()> {
+        assert_eq!(ConverseModel::ClaudeOpus5_5.id(), "claude-opus-5-5");
+        assert_eq!(
+            ConverseModel::ClaudeOpus5_5.request_id(),
+            "anthropic.claude-opus-5-5"
+        );
+        assert_eq!(
+            ConverseModel::ClaudeOpus5_5.display_name(),
+            "Claude Opus 5.5"
+        );
+        assert_eq!(ConverseModel::ClaudeOpus5_5.max_token_count(), 1_000_000);
+        assert_eq!(ConverseModel::ClaudeOpus5_5.max_output_tokens(), 128_000);
+        assert!(ConverseModel::ClaudeOpus5_5.supports_tool_use());
+        assert!(ConverseModel::ClaudeOpus5_5.supports_images());
+        assert!(ConverseModel::ClaudeOpus5_5.supports_caching());
+        assert!(ConverseModel::ClaudeOpus5_5.supports_thinking());
+        assert!(ConverseModel::ClaudeOpus5_5.supports_adaptive_thinking());
+        assert!(ConverseModel::ClaudeOpus5_5.supports_xhigh_adaptive_thinking());
+        Ok(())
+    }
+
+    #[test]
+    fn test_opus_5_5_from_id_is_not_shadowed_by_opus_5() {
+        // `claude-opus-5` is a prefix of `claude-opus-5-5`; the 5.5 check must
+        // run first or every 5.5 id silently resolves to Opus 5.
+        assert_eq!(
+            ConverseModel::from_id("claude-opus-5-5").unwrap(),
+            ConverseModel::ClaudeOpus5_5
+        );
+        assert_eq!(
+            ConverseModel::from_id("claude-opus-5-5-thinking").unwrap(),
+            ConverseModel::ClaudeOpus5_5
+        );
+        // ...and Opus 5 itself still resolves to Opus 5.
+        assert_eq!(
+            ConverseModel::from_id("claude-opus-5").unwrap(),
+            ConverseModel::ClaudeOpus5
+        );
+        assert_eq!(
+            ConverseModel::from_id("claude-opus-5-thinking").unwrap(),
+            ConverseModel::ClaudeOpus5
+        );
+    }
+
+    #[test]
+    fn test_opus_5_5_region_inference_ids() -> anyhow::Result<()> {
+        // Only the `us.` and `global.` profiles are verified for Opus 5.5, so
+        // those resolve directly and every other geo falls back to `global.`
+        // rather than emitting an unverified regional profile.
+        assert_eq!(
+            ConverseModel::ClaudeOpus5_5.cross_region_inference_id("us-east-1", false)?,
+            "us.anthropic.claude-opus-5-5"
+        );
+        assert_eq!(
+            ConverseModel::ClaudeOpus5_5.cross_region_inference_id("us-east-1", true)?,
+            "global.anthropic.claude-opus-5-5"
+        );
+        for region in [
+            "eu-west-1",
+            "ap-southeast-2",
+            "ap-northeast-1",
+            "ca-central-1",
+        ] {
+            assert_eq!(
+                ConverseModel::ClaudeOpus5_5.cross_region_inference_id(region, false)?,
+                "global.anthropic.claude-opus-5-5",
+                "region {region} should fall back to the global profile"
+            );
+        }
         Ok(())
     }
 
