@@ -33,15 +33,16 @@ pub fn supports_fast_mode(model_id: &str) -> bool {
 /// explicit `thinking: {"type": "disabled"}`.
 ///
 /// On earlier Opus models omitting `thinking` means thinking is off; Claude
-/// Opus 5 flipped that default. Claude Fable 5, Claude Mythos 5, and Claude
-/// Opus 5.5 also think by default, but they reject `{"type": "disabled"}`
-/// with a 400 error, so they are deliberately excluded here (thinking cannot
-/// be turned off for them at all; omitting the field is the only valid shape).
+/// Opus 5 flipped that default, as did Claude Haiku 5.5. Claude Fable 5,
+/// Claude Mythos 5, and Claude Opus 5.5 also think by default, but they reject
+/// `{"type": "disabled"}` with a 400 error, so they are deliberately excluded
+/// here (thinking cannot be turned off for them at all; omitting the field is
+/// the only valid shape).
 ///
 /// <https://platform.claude.com/docs/en/about-claude/models/migration-guide#migrating-to-claude-opus-5>
 /// <https://platform.claude.com/docs/en/models/opus-5-5/migration-guide>
 pub fn requires_explicit_thinking_opt_out(model_id: &str) -> bool {
-    matches!(model_id, "claude-opus-5")
+    matches!(model_id, "claude-opus-5" | "claude-haiku-5-5")
 }
 
 pub const FABLE_MODEL_ID_PREFIX: &str = "claude-fable-5";
@@ -51,12 +52,15 @@ pub const THINKING_BINDING_CONTROLS_BETA_HEADER: &str = "thinking-binding-contro
 /// Models that bind each thinking block to the exact conversation prefix that
 /// produced it ("preserved thinking"). Replaying a block after the system
 /// prompt, tools, or an earlier turn changed is a 400 unless the request opts
-/// into `prefix_mismatch_behavior: "drop_block"`. Claude Opus 5.5 inherits
-/// this safeguard from Claude Fable 5.1.
+/// into `prefix_mismatch_behavior: "drop_block"`. The Claude 5.5 models
+/// inherit this safeguard from Claude Fable 5.1.
 ///
 /// <https://platform.claude.com/docs/en/models/opus-5-5/migration-guide>
 pub fn binds_thinking_blocks_to_prefix(model_id: &str) -> bool {
-    matches!(model_id, "claude-fable-5-1" | "claude-opus-5-5")
+    matches!(
+        model_id,
+        "claude-opus-5-5" | "claude-fable-5-1" | "claude-sonnet-5-5" | "claude-haiku-5-5"
+    )
 }
 
 /// Models that reject forced tool use (`tool_choice` types `any` and `tool`)
@@ -64,7 +68,7 @@ pub fn binds_thinking_blocks_to_prefix(model_id: &str) -> bool {
 pub fn supports_forced_tool_use(model_id: &str) -> bool {
     !matches!(
         model_id,
-        "claude-fable-5-1" | "claude-mythos-5-1" | "claude-opus-5-5"
+        "claude-opus-5-5" | "claude-fable-5-1" | "claude-mythos-5-1" | "claude-sonnet-5-5"
     )
 }
 
@@ -208,18 +212,20 @@ impl Model {
         // <https://platform.claude.com/docs/en/build-with-claude/compaction#supported-models>
         let supports_compaction = matches!(
             entry.id.as_str(),
-            "claude-fable-5-1"
+            "claude-opus-5-5"
+                | "claude-fable-5-1"
                 | "claude-fable-5"
                 | "claude-mythos-5-1"
                 | "claude-mythos-5"
                 | "claude-mythos-preview"
-                | "claude-opus-5-5"
                 | "claude-opus-5"
                 | "claude-opus-4-8"
                 | "claude-opus-4-7"
                 | "claude-opus-4-6"
+                | "claude-sonnet-5-5"
                 | "claude-sonnet-5"
                 | "claude-sonnet-4-6"
+                | "claude-haiku-5-5"
         );
 
         let mut extra_beta_headers = Vec::new();
@@ -1013,6 +1019,10 @@ pub enum Thinking {
     /// by default (see [`requires_explicit_thinking_opt_out`]); only accepted
     /// at effort `high` or below.
     Disabled,
+    /// The lowest thinking setting, for models that think by default but
+    /// reject [`Thinking::Disabled`] (Claude Sonnet 5.5).
+    #[serde(rename = "between_tools")]
+    BetweenTools,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -1954,7 +1964,7 @@ mod tests {
 
     #[test]
     fn from_listed_enables_fast_mode_and_compaction_for_supported_opus_models() {
-        for model_id in ["claude-opus-5", "claude-opus-4-8"] {
+        for model_id in ["claude-opus-5-5", "claude-opus-5", "claude-opus-4-8"] {
             let model = Model::from_listed(listed_entry(model_id, ModelCapabilities::default()));
 
             assert!(model.supports_speed);
