@@ -307,6 +307,44 @@ impl Model {
         }
     }
 
+    /// The built-in Claude Fable 5.2 entry, seeded for the same reason as
+    /// [`Model::fable_5`]. Mirrors what [`Model::from_listed`] derives for
+    /// `claude-fable-5-2`: 1M context, 128k output, adaptive thinking (always
+    /// on, cannot be disabled), vision, fast mode, compaction, and effort
+    /// levels up to `xhigh`. It binds thinking blocks to the conversation
+    /// prefix, so the binding-controls beta header rides along (see
+    /// [`binds_thinking_blocks_to_prefix`]).
+    ///
+    /// <https://platform.claude.com/docs/en/models/fable-5-2/overview>
+    pub fn fable_5_2() -> Self {
+        Self {
+            id: "claude-fable-5-2".to_string(),
+            display_name: "Claude Fable 5.2".to_string(),
+            max_input_tokens: 1_000_000,
+            max_output_tokens: 128_000,
+            default_temperature: 1.0,
+            mode: AnthropicModelMode::AdaptiveThinking,
+            supports_thinking: true,
+            supports_adaptive_thinking: true,
+            supports_images: true,
+            supports_speed: true,
+            supports_compaction: true,
+            supported_effort_levels: vec![
+                Effort::Low,
+                Effort::Medium,
+                Effort::High,
+                Effort::XHigh,
+                Effort::Max,
+            ],
+            tool_override: None,
+            extra_beta_headers: vec![
+                FAST_MODE_BETA_HEADER.to_string(),
+                COMPACTION_BETA_HEADER.to_string(),
+                THINKING_BINDING_CONTROLS_BETA_HEADER.to_string(),
+            ],
+        }
+    }
+
     /// The built-in Claude Opus 5 entry, seeded for the same reason as
     /// [`Model::fable_5`]. Mirrors what [`Model::from_listed`] derives for
     /// `claude-opus-5`: 1M context, 128k output, adaptive thinking, vision,
@@ -2069,6 +2107,26 @@ mod tests {
         assert!(beta_headers.contains(FAST_MODE_BETA_HEADER));
         assert!(beta_headers.contains(COMPACTION_BETA_HEADER));
         assert!(beta_headers.contains(THINKING_BINDING_CONTROLS_BETA_HEADER));
+    }
+
+    #[test]
+    fn fable_5_2_builtin_mirrors_from_listed() {
+        let builtin = Model::fable_5_2();
+        let listed = Model::from_listed(listed_entry(
+            "claude-fable-5-2",
+            ModelCapabilities::default(),
+        ));
+        assert_eq!(builtin.id, listed.id);
+        assert_eq!(builtin.supports_speed, listed.supports_speed);
+        assert_eq!(builtin.supports_compaction, listed.supports_compaction);
+        assert_eq!(builtin.extra_beta_headers, listed.extra_beta_headers);
+        assert_eq!(builtin.max_input_tokens, 1_000_000);
+        assert_eq!(builtin.max_output_tokens, 128_000);
+        assert_eq!(builtin.mode, AnthropicModelMode::AdaptiveThinking);
+        assert!(builtin.supported_effort_levels.contains(&Effort::XHigh));
+        assert!(builtin.supported_effort_levels.contains(&Effort::Max));
+        assert!(!supports_forced_tool_use(&builtin.id));
+        assert!(!requires_explicit_thinking_opt_out(&builtin.id));
     }
 
     #[test]

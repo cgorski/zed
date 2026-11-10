@@ -205,6 +205,7 @@ impl AnthropicLanguageModelProvider {
         // server-reported capabilities.
         for model in [
             anthropic::Model::fable_5(),
+            anthropic::Model::fable_5_2(),
             anthropic::Model::opus_5(),
             anthropic::Model::opus_5_5(),
         ] {

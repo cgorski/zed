@@ -2066,6 +2066,7 @@ fn deny_tool_use_events(
 fn converse_reasoning_model(model_id: &str) -> Option<ConverseModel> {
     [
         ConverseModel::Gpt6Astra,
+        ConverseModel::ClaudeFable5_2,
         ConverseModel::ClaudeFable5_1,
         ConverseModel::ClaudeOpus5_5,
     ]
@@ -2132,7 +2133,11 @@ pub fn into_bedrock(
     let reasoning_model = converse_reasoning_model(&model);
     let always_adaptive = matches!(
         reasoning_model,
-        Some(ConverseModel::ClaudeFable5_1 | ConverseModel::ClaudeOpus5_5)
+        Some(
+            ConverseModel::ClaudeFable5_2
+                | ConverseModel::ClaudeFable5_1
+                | ConverseModel::ClaudeOpus5_5
+        )
     );
     let is_gpt_6_astra = reasoning_model == Some(ConverseModel::Gpt6Astra);
     if always_adaptive && request.tool_choice == Some(LanguageModelToolChoice::Any) {
@@ -2459,10 +2464,11 @@ pub fn into_bedrock(
     }
 
     let selected_effort = |default_effort| {
-        // Astra, Fable 5.1, and Opus 5.5 keep reasoning enabled, so suppressed requests use the
-        // default effort, matching the Anthropic and OpenAI providers.
+        // Astra, Fable 5.1/5.2, and Opus 5.5 keep reasoning enabled, so suppressed requests use
+        // the default effort, matching the Anthropic and OpenAI providers.
         // <https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra>
         // <https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-1.html>
+        // <https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-2.html>
         // <https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5-5.html>
         if !request.thinking_allowed {
             return default_effort;
@@ -2551,11 +2557,17 @@ pub fn map_to_language_model_completion_events(
     let model = converse_reasoning_model(model.request_id()).unwrap_or(model);
     let report_refusals = matches!(
         model,
-        ConverseModel::ClaudeFable5_1 | ConverseModel::ClaudeFable5 | ConverseModel::Gpt6Astra
+        ConverseModel::ClaudeFable5_2
+            | ConverseModel::ClaudeFable5_1
+            | ConverseModel::ClaudeFable5
+            | ConverseModel::Gpt6Astra
     );
     let preserve_redacted_thinking = matches!(
         model,
-        ConverseModel::Gpt6Astra | ConverseModel::ClaudeFable5_1 | ConverseModel::ClaudeOpus5_5
+        ConverseModel::Gpt6Astra
+            | ConverseModel::ClaudeFable5_2
+            | ConverseModel::ClaudeFable5_1
+            | ConverseModel::ClaudeOpus5_5
     );
     let initial_state = State {
         events,
@@ -3519,6 +3531,12 @@ mod tests {
                     "effort": "High", "binding_controls_beta": "thinking-binding-controls-2026-08-01"
                 }}),
             ),
+            (
+                ConverseModel::ClaudeFable5_2,
+                serde_json::json!({"Adaptive": {
+                    "effort": "High", "binding_controls_beta": "thinking-binding-controls-2026-08-01"
+                }}),
+            ),
         ] {
             for thinking_allowed in [true, false] {
                 let request = into_bedrock(
@@ -3792,31 +3810,41 @@ mod tests {
 
     #[test]
     fn test_converse_refusals_and_fable_forced_tool_use() -> Result<()> {
-        let fable = ConverseModel::ClaudeFable5_1;
         let earlier_fable = ConverseModel::ClaudeFable5;
-        assert!(!converse_language_model(&fable).tool_choice_support.any);
         assert!(
             converse_language_model(&earlier_fable)
                 .tool_choice_support
                 .any
         );
-        let forced = into_bedrock(
-            LanguageModelRequest {
-                tool_choice: Some(LanguageModelToolChoice::Any),
-                ..Default::default()
-            },
-            fable.cross_region_inference_id("us-east-1", false)?,
-            fable.default_temperature(),
-            fable.max_output_tokens(),
-            fable.thinking_mode(),
-            fable.supports_caching(),
-            fable.supports_tool_use(),
-            None,
-            None,
-        );
-        assert!(forced.is_err());
+        for fable in [ConverseModel::ClaudeFable5_1, ConverseModel::ClaudeFable5_2] {
+            assert!(!converse_language_model(&fable).tool_choice_support.any);
+            let forced = into_bedrock(
+                LanguageModelRequest {
+                    tool_choice: Some(LanguageModelToolChoice::Any),
+                    ..Default::default()
+                },
+                fable.cross_region_inference_id("us-east-1", false)?,
+                fable.default_temperature(),
+                fable.max_output_tokens(),
+                fable.thinking_mode(),
+                fable.supports_caching(),
+                fable.supports_tool_use(),
+                None,
+                None,
+            );
+            assert!(
+                forced.is_err(),
+                "{} must reject forced tool use",
+                fable.id()
+            );
+        }
 
-        for model in [fable, earlier_fable, ConverseModel::Gpt6Astra] {
+        for model in [
+            ConverseModel::ClaudeFable5_2,
+            ConverseModel::ClaudeFable5_1,
+            earlier_fable,
+            ConverseModel::Gpt6Astra,
+        ] {
             for reason in [StopReason::from("refusal"), StopReason::ContentFiltered] {
                 let response = futures::stream::iter(vec![Ok(ConverseStreamOutput::MessageStop(
                     bedrock::bedrock_client::types::MessageStopEvent::builder()

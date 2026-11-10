@@ -63,6 +63,13 @@ pub struct BedrockThinkingConfig {
 pub enum ConverseModel {
     // Anthropic Claude 4+ models
     #[serde(
+        rename = "claude-fable-5-2",
+        alias = "claude-fable-5-2-latest",
+        alias = "claude-fable-5-2-thinking",
+        alias = "claude-fable-5-2-thinking-latest"
+    )]
+    ClaudeFable5_2,
+    #[serde(
         rename = "claude-fable-5-1",
         alias = "claude-fable-5-1-latest",
         alias = "claude-fable-5-1-thinking",
@@ -278,6 +285,8 @@ impl ConverseModel {
     pub fn from_id(id: &str) -> anyhow::Result<Self> {
         if id == "gpt-6-astra" {
             Ok(Self::Gpt6Astra)
+        } else if id.starts_with("claude-fable-5-2") {
+            Ok(Self::ClaudeFable5_2)
         } else if id.starts_with("claude-fable-5-1") {
             Ok(Self::ClaudeFable5_1)
         } else if id.starts_with("claude-fable-5") {
@@ -315,6 +324,7 @@ impl ConverseModel {
 
     pub fn id(&self) -> &str {
         match self {
+            Self::ClaudeFable5_2 => "claude-fable-5-2",
             Self::ClaudeFable5_1 => "claude-fable-5-1",
             Self::ClaudeFable5 => "claude-fable-5",
             Self::ClaudeOpus5_5 => "claude-opus-5-5",
@@ -372,6 +382,7 @@ impl ConverseModel {
 
     pub fn request_id(&self) -> &str {
         match self {
+            Self::ClaudeFable5_2 => "anthropic.claude-fable-5-2",
             Self::ClaudeFable5_1 => "anthropic.claude-fable-5-1",
             Self::ClaudeFable5 => "anthropic.claude-fable-5",
             Self::ClaudeOpus5_5 => "anthropic.claude-opus-5-5",
@@ -429,6 +440,7 @@ impl ConverseModel {
 
     pub fn display_name(&self) -> &str {
         match self {
+            Self::ClaudeFable5_2 => "Claude Fable 5.2",
             Self::ClaudeFable5_1 => "Claude Fable 5.1",
             Self::ClaudeFable5 => "Claude Fable 5",
             Self::ClaudeOpus5_5 => "Claude Opus 5.5",
@@ -488,7 +500,8 @@ impl ConverseModel {
 
     pub fn max_token_count(&self) -> u64 {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -529,7 +542,8 @@ impl ConverseModel {
 
     pub fn max_output_tokens(&self) -> u64 {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -585,7 +599,8 @@ impl ConverseModel {
 
     pub fn supports_tool_use(&self) -> bool {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -626,7 +641,8 @@ impl ConverseModel {
 
     pub fn supports_images(&self) -> bool {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -654,7 +670,8 @@ impl ConverseModel {
 
     pub fn supports_caching(&self) -> bool {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -679,6 +696,7 @@ impl ConverseModel {
     pub fn supports_thinking(&self) -> bool {
         match self {
             Self::Gpt6Astra
+            | Self::ClaudeFable5_2
             | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
@@ -700,7 +718,8 @@ impl ConverseModel {
 
     pub fn supports_adaptive_thinking(&self) -> bool {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -718,7 +737,8 @@ impl ConverseModel {
 
     pub fn supports_xhigh_adaptive_thinking(&self) -> bool {
         match self {
-            Self::ClaudeFable5_1
+            Self::ClaudeFable5_2
+            | Self::ClaudeFable5_1
             | Self::ClaudeFable5
             | Self::ClaudeOpus5_5
             | Self::ClaudeOpus5
@@ -776,10 +796,13 @@ impl ConverseModel {
             return Ok(model_id.into());
         }
 
-        if matches!(self, Self::Gpt6Astra | Self::ClaudeFable5_1) {
-            if matches!(self, Self::ClaudeFable5_1)
-                && matches!(region, "us-gov-east-1" | "us-gov-west-1")
-            {
+        // Fable 5.1 and 5.2 publish the same profiles: `us.` for US and Canada
+        // sources, `us-gov.` in GovCloud, and `global.` everywhere else.
+        // <https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-1.html>
+        // <https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-2.html>
+        let is_fable_5_1_or_later = matches!(self, Self::ClaudeFable5_1 | Self::ClaudeFable5_2);
+        if matches!(self, Self::Gpt6Astra) || is_fable_5_1_or_later {
+            if is_fable_5_1_or_later && matches!(region, "us-gov-east-1" | "us-gov-west-1") {
                 return Ok(format!("us-gov.{model_id}"));
             }
 
@@ -808,7 +831,7 @@ impl ConverseModel {
                         | "ap-southeast-2"
                         | "sa-east-1"
                 )
-                || matches!(self, Self::ClaudeFable5_1)
+                || is_fable_5_1_or_later
                     && matches!(
                         region,
                         "eu-central-2"
@@ -1218,6 +1241,14 @@ mod tests {
                 1_000_000,
                 true,
             ),
+            (
+                ConverseModel::ClaudeFable5_2,
+                "claude-fable-5-2",
+                "anthropic.claude-fable-5-2",
+                "Claude Fable 5.2",
+                1_000_000,
+                true,
+            ),
         ] {
             assert_eq!(model.id(), id);
             assert_eq!(model.request_id(), request_id);
@@ -1245,6 +1276,18 @@ mod tests {
             ConverseModel::from_id("claude-fable-5-1-thinking")?,
             ConverseModel::ClaudeFable5_1
         );
+        // `claude-fable-5` is a prefix of every Fable id, so 5.2 must not be
+        // shadowed by the 5.1 or 5 checks.
+        assert_eq!(
+            ConverseModel::from_id("claude-fable-5-2-thinking")?,
+            ConverseModel::ClaudeFable5_2
+        );
+        assert_eq!(
+            ConverseModel::from_id("claude-fable-5")?,
+            ConverseModel::ClaudeFable5
+        );
+        assert!(ConverseModel::ClaudeFable5_2.supports_adaptive_thinking());
+        assert!(ConverseModel::ClaudeFable5_2.supports_xhigh_adaptive_thinking());
         Ok(())
     }
 
@@ -1257,6 +1300,18 @@ mod tests {
         assert_eq!(
             ConverseModel::ClaudeFable5_1.cross_region_inference_id("af-south-1", false)?,
             "global.anthropic.claude-fable-5-1"
+        );
+        assert_eq!(
+            ConverseModel::ClaudeFable5_2.cross_region_inference_id("us-gov-west-1", true)?,
+            "us-gov.anthropic.claude-fable-5-2"
+        );
+        assert_eq!(
+            ConverseModel::ClaudeFable5_2.cross_region_inference_id("af-south-1", false)?,
+            "global.anthropic.claude-fable-5-2"
+        );
+        assert_eq!(
+            ConverseModel::ClaudeFable5_2.cross_region_inference_id("ca-west-1", false)?,
+            "us.anthropic.claude-fable-5-2"
         );
         for region in ["af-south-1", "eu-central-2", "ap-east-2", "us-gov-west-1"] {
             assert!(
